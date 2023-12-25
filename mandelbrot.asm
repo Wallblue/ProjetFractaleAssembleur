@@ -9,6 +9,7 @@ extern XFlush
 extern XCreateGC
 extern XSetForeground
 extern XNextEvent
+extern XDrawPoint
 
 extern printf
 extern scanf
@@ -24,7 +25,7 @@ extern scanf
 %define KEY_PRESS 2
 %define BUTTON_PRESS 4
 %define EXPOSE 12
-%define CONFIGURE_NOTIFY 16
+%define CONFIGURE_NOTIFY 22
 %define CREATE_NOTIFY 16
 
 ;Sizes
@@ -41,31 +42,35 @@ extern scanf
 global main
 
 section .data
-x1:		dq -2.1
-x2:		dq 0.6
-y1:		dq -1.2
-y2:		dq 1.2
-zoomCoeff:	dq 100.0
-askZoom:	db "Quel zoom voulez-vous ? (1/100)", 10, 0
-dimensions:	db "Largeur : %d | Hauteur : %d", 10, 0
+x1:				dq -2.1
+x2:				dq 0.6
+y1:				dq -1.2
+y2:				dq 1.2
+zoomCoeff:		dq 100.0
+askZoom:		db "Quel zoom voulez-vous ? (1/100)", 10, 0
+dimensions:		db "Largeur : %d | Hauteur : %d", 10, 0
 askValidation:	db "Ces dimensions vous vont-elles ? (y/n)", 10, 0
-askChar:	db " %c", 0
-askDouble:	db "%lf", 0
+askChar:		db " %c", 0
+askDouble:		db "%lf", 0
 event: times 24 dq 0
+max_iteration:	db 50
+x:				dd 0
+y:				dd 0
+i:				db 0
 
 section .bss
-win_x:		resd 1
-win_y:		resd 1
-choice:		resb 1
-zoom:		resq 1
+win_x:			resd 1
+win_y:			resd 1
+choice:			resb 1
+zoom:			resq 1
 display_name:	resq 1
-screen:		resd 1
-depth:		resd 1
-connection:	resd 1
-width:		resd 1
-height:		resd 1
-window:		resq 1
-gc:		resq 1
+screen:			resd 1
+depth:			resd 1
+connection:		resd 1
+width:			resd 1
+height:			resd 1
+window:			resq 1
+gc:				resq 1
 
 section .text
 main:
@@ -193,7 +198,19 @@ eventLoop:
 	jmp eventLoop
 
 dessin:
-	jmp flush
+	mov eax, 0 ; x
+
+	Xloop:
+	cmp eax, dword[win_x]
+	je flush
+	inc eax
+	mov ebx, 0 ; y
+		Yloop:
+		cmp ebx, dword[win_y]
+		je Xloop
+			;code
+		inc ebx
+		jmp Yloop
 
 flush:
 	mov rdi, qword[display_name]
