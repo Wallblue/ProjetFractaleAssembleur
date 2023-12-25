@@ -10,6 +10,7 @@ extern XCreateGC
 extern XSetForeground
 extern XNextEvent
 extern XDrawPoint
+extern XDrawLine
 
 extern printf
 extern scanf
@@ -54,9 +55,9 @@ askChar:		db " %c", 0
 askDouble:		db "%lf", 0
 event: times 24 dq 0
 max_iteration:	db 50
-x:				dd 0
-y:				dd 0
-i:				db 0
+floatZero:		dq 0.0
+floatTwo:		dq 2.0
+floatFour:		dq 4.0
 
 section .bss
 win_x:			resd 1
@@ -71,6 +72,12 @@ width:			resd 1
 height:			resd 1
 window:			resq 1
 gc:				resq 1
+iter:			resb 1
+cReal:			resq 1
+cImagi:			resq 1
+zReal:			resq 1
+zImagi:			resq 1
+floatTemp:		resq 1
 
 section .text
 main:
@@ -198,8 +205,9 @@ eventLoop:
 	jmp eventLoop
 
 dessin:
-	mov eax, 0 ; x
 
+	mov eax, 0 ; x
+	dec eax
 	Xloop:
 	cmp eax, dword[win_x]
 	je flush
@@ -208,7 +216,61 @@ dessin:
 		Yloop:
 		cmp ebx, dword[win_y]
 		je Xloop
-			;code
+			cvtsi2sd xmm0, eax ; Calcul partie reelle de c
+			divsd xmm0, [zoom]
+			addsd xmm0, [x1]
+			movsd [cReal], xmm0
+
+			cvtsi2sd xmm0, ebx ; calcul partie imaginaire de c
+			divsd xmm0, [zoom]
+			addsd xmm0, [y1]
+			movsd [cImagi], xmm0
+
+			movsd xmm0, [floatZero] ; mise a 0 de z
+			movsd [zReal], xmm0
+			movsd [zImagi], xmm0
+			mov cl, 0 ; mise a 0 du compteur
+
+			pointTest:			; Calcul de z_r^2 - z_i^2 + c_r
+				movsd xmm0, [zReal]
+				mulsd xmm0, xmm0 ; z_r^2
+				movsd xmm2, xmm0 ; On sauvegarde le resulat pour plus tard
+				movsd xmm1, [zImagi]
+				mulsd xmm1, xmm1 ; z_i^2
+				subsd xmm0, xmm1
+				addsd xmm0, [cReal]
+
+				movsd xmm3, [zImagi] ; Calcul de z_i * z_r * 2 + c_i
+				mulsd xmm3, [zReal]
+				mulsd xmm3, [floatTwo]
+				addsd xmm3, [cImagi]
+
+				movsd [zReal], xmm0 ; Enregistrement des resultats
+				movsd [zImagi], xmm3
+
+				;Calcul du terme z_r^2 + z_i^2
+				addsd xmm2, xmm1
+			
+			inc cl
+			ucomisd xmm2, qword[floatFour]
+			jae next
+			cmp cl, byte[max_iteration]
+			jae next
+			jmp pointTest
+
+			next:
+			cmp cl, byte[max_iteration]
+			jne finBoucle
+				push rax
+				mov rdi, qword[display_name]
+				mov rsi, qword[window]
+				mov rdx, qword[gc]
+				mov ecx, eax	; coordonnée en x
+				mov r8d, ebx	; coordonnée en y
+				call XDrawPoint
+				pop rax
+
+	finBoucle:
 		inc ebx
 		jmp Yloop
 
