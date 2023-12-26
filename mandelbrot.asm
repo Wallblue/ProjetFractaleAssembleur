@@ -54,7 +54,7 @@ askValidation:	db "Ces dimensions vous vont-elles ? (y/n)", 10, 0
 askChar:		db " %c", 0
 askDouble:		db "%lf", 0
 event: times 24 dq 0
-max_iteration:	db 50
+max_iteration:	dw 1000
 floatZero:		dq 0.0
 floatTwo:		dq 2.0
 floatFour:		dq 4.0
@@ -113,7 +113,7 @@ start:
 	mov [win_y], eax
 
 	;Affichage des dimensions
-	mov rdi, dimensions 
+	mov rdi, dimensions
 	mov rsi, [win_x]
 	mov rdx, [win_y]
 	mov rax, 0
@@ -229,7 +229,7 @@ dessin:
 			movsd xmm0, [floatZero] ; mise a 0 de z
 			movsd [zReal], xmm0
 			movsd [zImagi], xmm0
-			mov cl, 0 ; mise a 0 du compteur
+			mov cx, 0 ; mise a 0 du compteur
 
 			pointTest:			; Calcul de z_r^2 - z_i^2 + c_r
 				movsd xmm0, [zReal]
@@ -251,15 +251,15 @@ dessin:
 				;Calcul du terme z_r^2 + z_i^2
 				addsd xmm2, xmm1
 			
-			inc cl
+			inc cx
 			ucomisd xmm2, qword[floatFour]
 			jae next
-			cmp cl, byte[max_iteration]
+			cmp cx, word[max_iteration]
 			jae next
 			jmp pointTest
 
 			next:
-			cmp cl, byte[max_iteration]
+			cmp cx, word[max_iteration]
 			jne finBoucle
 				push rax
 				mov rdi, qword[display_name]
