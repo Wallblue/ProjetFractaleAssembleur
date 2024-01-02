@@ -54,7 +54,7 @@ askValidation:	db "Ces dimensions vous vont-elles ? (y/n)", 10, 0
 askChar:		db " %c", 0
 askDouble:		db "%lf", 0
 event: times 24 dq 0
-max_iteration:	dw 1000
+max_iteration:	dw 50
 floatZero:		dq 0.0
 floatTwo:		dq 2.0
 floatFour:		dq 4.0
@@ -77,7 +77,8 @@ cReal:			resq 1
 cImagi:			resq 1
 zReal:			resq 1
 zImagi:			resq 1
-floatTemp:		resq 1
+colour:			resq 1
+
 
 section .text
 main:
@@ -260,19 +261,47 @@ dessin:
 
 			next:
 			cmp cx, word[max_iteration]
-			jne finBoucle
+			jne else
+				mov rdx, 0x000000 ; rdx sera utilisé par la fonction qui set la couleur
+				jmp drawPoint
+			else:
+				;cx * 255 / max_iteration
 				push rax
+				push rbx
+
+				xor rax, rax
+				mov ax, cx
+				mov edx, 255
+				mul edx
+				xor rdx, rdx
+				div word[max_iteration]
+				mov bl, al
+				shl rbx, 8
+				mov bl, al
+				shl rbx, 8
+				mov bl, 255
+				mov rdx, rbx
+
+				pop rbx
+				pop rax
+
+			drawPoint:
+				mov rdi, qword[display_name]
+				mov rsi, qword[gc]
+				push rax ; pour garder la valeur de rax
+				call XSetForeground
+				pop rax
+
 				mov rdi, qword[display_name]
 				mov rsi, qword[window]
 				mov rdx, qword[gc]
 				mov ecx, eax	; coordonnée en x
 				mov r8d, ebx	; coordonnée en y
+				push rax ; pour garder la valeur de rax
 				call XDrawPoint
 				pop rax
-
-	finBoucle:
 		inc ebx
-		jmp Yloop
+		jmp Yloop ;Fin de la Xloop
 
 flush:
 	mov rdi, qword[display_name]
