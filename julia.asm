@@ -44,33 +44,22 @@ global main
 
 section .data
 
-a: dq -0.5
-b: dq 0.6
+a: dq -0.75
+b: dq 0.0
 taille: dq 400
 xmin: dq -1.25
 xmax: dq 1.25
 ymin: dq -1.25
 ymax: dq 1.25
 iterationmax: dw 200
-x1:				dq -2.1
-x2:				dq 0.6
-y1:				dq -1.2
-y2:				dq 1.2
-zoomCoeff:		dq 100.0
-askZoom:		db "Quel zoom voulez-vous ? (1/100)", 10, 0
-dimensions:		db "Largeur : %d | Hauteur : %d", 10, 0
-askValidation:	db "Ces dimensions vous vont-elles ? (y/n)", 10, 0
-askChar:		db " %c", 0
-askDouble:		db "%lf", 0
 event: times 24 dq 0
-test:           db "i : %hu", 10, 0
 floatZero:		dq 0.0
 floatTwo:		dq 2.0
 floatFour:		dq 4.0
+win_x:			dd 400
+win_y:			dd 400
 
 section .bss
-win_x:			resd 1
-win_y:			resd 1
 choice:			resb 1
 zoom:			resq 1
 display_name:	resq 1
@@ -90,61 +79,6 @@ colour:			resq 1
 section .text
 main:
 	push rbp
-start:
-	;Saisie du Zoom
-	mov rax, 1
-	mov rdi, STDOUT
-	mov rsi, askZoom
-	mov rdx, 32
-	syscall
-
-	mov rdi, askDouble
-	mov rsi, zoom
-	mov rax, 0
-	call scanf
-
-	movsd xmm0, [zoomCoeff]
-	mulsd xmm0, [zoom]
-	movsd [zoom], xmm0
-
-	;Calcul de la taille de la fenetre
-	movsd xmm0, qword[x2]
-	subsd xmm0, [x1]
-	mulsd xmm0, [zoom]
-	cvtsd2si eax, xmm0
-	mov [win_x], eax
-
-	movsd xmm0, qword[y2]
-	subsd xmm0, [y1]
-	mulsd xmm0, [zoom]
-	cvtsd2si eax, xmm0
-	mov [win_y], eax
-
-	;Affichage des dimensions
-	mov rdi, dimensions
-	mov rsi, [win_x]
-	mov rdx, [win_y]
-	mov rax, 0
-	call printf
-
-	;On demande si les dimensions vont à l'utilisateur
-	mov rax, 1
-	mov rdi, STDOUT
-	mov rsi, askValidation
-	mov rdx, 39
-	syscall
-
-	mov rdi, askChar
-	mov rsi, choice
-	mov rax, 0
-	call scanf
-
-	cmp byte[choice], 121
-	je windowCreation
-	cmp byte[choice], 89
-	je windowCreation
-
-	jmp start
 
 windowCreation:
 	;Recuperation du display et du screen
@@ -308,10 +242,11 @@ dessin:
         ucomisd xmm0, qword[floatFour]
         ja sinon
         
-        push rax
+            push rax
             push rbx
-
+            xor rdx, rdx
             xor rax, rax
+            xor rbx, rbx
             mov ax, cx
             mov edx, 0
             mul edx
@@ -350,10 +285,9 @@ dessin:
             
             push rax
             push rbx
-
-            xor rax, rax
+            
             mov ax, cx
-            mov edx, 255
+            mov edx, 200
             mul edx
             xor rdx, rdx
             div word[i]
@@ -361,8 +295,9 @@ dessin:
             shl rbx, 8
             mov bl, al
             shl rbx, 8
-            mov bl, 255
+            mov bl, 143
             mov rdx, rbx
+            
             
             mov rdi, qword[display_name]
             mov rsi, qword[gc]
