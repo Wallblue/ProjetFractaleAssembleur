@@ -44,24 +44,24 @@ global main
 
 section .data
 
-a: dq -0.75
-b: dq 0.0
 taille: dq 400
 xmin: dq -1.25
 xmax: dq 1.25
 ymin: dq -1.25
 ymax: dq 1.25
+askA: db "Saisir a : ", 10, 0
+askB: db "Saisir b : ", 10, 0
+askDouble: db "%lf", 0
 iterationmax: dw 200
 event: times 24 dq 0
 floatZero:		dq 0.0
 floatTwo:		dq 2.0
 floatFour:		dq 4.0
-win_x:			dd 400
-win_y:			dd 400
+final_color: dd 0
 
 section .bss
-choice:			resb 1
-zoom:			resq 1
+a:			    resq 1
+b:              resq 1
 display_name:	resq 1
 screen:			resd 1
 depth:			resd 1
@@ -80,6 +80,24 @@ section .text
 main:
 	push rbp
 
+	mov rdi, askA
+	mov rax, 0
+	call printf
+
+	mov rdi, askDouble
+	mov rsi, a
+	mov rax, 0
+	call scanf
+	
+	mov rdi, askB
+	mov rax, 0
+	call printf
+
+	mov rdi, askDouble
+	mov rsi, b
+	mov rax, 0
+	call scanf
+	
 windowCreation:
 	;Recuperation du display et du screen
 	xor rdi, rdi
@@ -101,9 +119,8 @@ windowCreation:
 	mov rsi, rbx
 	mov rdx, 10
 	mov rcx, 10
-	mov r8, [win_x] ;largeur
-	mov r9, [win_y] ;hauteur
-	push 0xFFFFFF	;fond
+	mov r8, 400 ;largeur
+	mov r9, 400 ;hauteur
 	push 0x00FF00
 	push 1
 	call XCreateSimpleWindow
@@ -155,7 +172,7 @@ dessin:
     boucle_ligne:
     
     cmp ax, word[taille]
-    ja flush
+    ja eventLoop
     
         boucle_colonne:
         
@@ -231,7 +248,7 @@ dessin:
         sie:
         mov dx, word[i]
         cmp dx, word[iterationmax]
-        jbe sinon
+        jbe couleur
         
         movsd xmm0, qword[x]
         mulsd xmm0, qword[x]
@@ -240,86 +257,9 @@ dessin:
 
         addsd xmm0, xmm1
         ucomisd xmm0, qword[floatFour]
-        ja sinon
-        
-            push rax
-            push rbx
-            xor rdx, rdx
-            xor rax, rax
-            xor rbx, rbx
-            mov ax, cx
-            mov edx, 0
-            mul edx
-            xor rdx, rdx
-            div word[i]
-            mov bl, al
-            shl rbx, 8
-            mov bl, al
-            shl rbx, 8
-            mov bl, 0
-            mov rdx, rbx
+        ja couleur
+        jmp noir          
             
-            mov rdi, qword[display_name]
-            mov rsi, qword[gc]
-            call XSetForeground
-
-            mov rdi, qword[display_name]
-            mov rsi, qword[window]
-            mov rdx, qword[gc]
-                      
-            pop rbx
-            pop rax
-            
-            mov ecx, ebx	; coordonnée en x
-            mov r8d, eax	; coordonnée en y
-            push rax ; pour garder la valeur de rax
-            push rbx
-            
-            call XDrawPoint
-            
-            pop rbx
-            pop rax
-        jmp incrementation
-    
-        sinon:
-            
-            push rax
-            push rbx
-            
-            mov ax, cx
-            mov edx, 200
-            mul edx
-            xor rdx, rdx
-            div word[i]
-            mov bl, al
-            shl rbx, 8
-            mov bl, al
-            shl rbx, 8
-            mov bl, 143
-            mov rdx, rbx
-            
-            
-            mov rdi, qword[display_name]
-            mov rsi, qword[gc]
-            call XSetForeground
-
-            mov rdi, qword[display_name]
-            mov rsi, qword[window]
-            mov rdx, qword[gc]
-                      
-            pop rbx
-            pop rax
-            
-            mov ecx, ebx	; coordonnée en x
-            mov r8d, eax	; coordonnée en y
-            push rax ; pour garder la valeur de rax
-            push rbx
-            
-            call XDrawPoint
-            
-            pop rbx
-            pop rax
-        
         incrementation:
         inc bx        
         jmp boucle_colonne
@@ -328,6 +268,88 @@ dessin:
         inc ax
         mov bx, 0
         jmp boucle_ligne
+        
+        noir: 
+            push rax
+            push rdx
+            push rbx
+            mov rdi, qword[display_name]
+            mov rsi, qword[gc]
+            mov edx, 0x000000   
+            call XSetForeground
+
+            pop rbx
+            pop rdx
+            pop rax
+            
+            mov rdi, qword[display_name]
+            mov rsi, qword[window]
+            mov rdx, qword[gc]
+            mov ecx, ebx
+            mov r8d, eax
+            push rax
+            call XDrawPoint
+            pop rax
+
+            jmp incrementation
+        
+        couleur:
+            push rax
+            push rdx
+            push rbx
+            
+            mov dword[final_color], 0
+            
+            mov rdi, qword[display_name]
+            mov rsi, qword[gc]
+
+            mov ax, word [i]
+            imul eax, eax, 4
+            mov ebx, 120
+            xor edx, edx
+            div ebx
+            shl edx, 16
+            add dword[final_color], edx
+
+            mov ax, word [i]
+            imul eax, eax, 2
+            mov ebx, 90
+            xor edx, edx
+            div ebx
+            shl edx, 8
+            add dword[final_color], edx
+
+            mov ax, word[i]
+            imul eax, eax, 6
+            mov ebx, 256
+            xor edx, edx
+            div ebx
+            add dword[final_color], edx
+            
+            
+            mov edx, dword[final_color] 
+            call XSetForeground
+
+            pop rbx
+            pop rdx
+            pop rax
+            
+            mov rdi, qword[display_name]
+            mov rsi, qword[window]
+            mov rdx, qword[gc]
+            mov ecx, ebx
+            mov r8d, eax
+            
+            push rax
+            push rdx
+            push rbx
+            
+            call XDrawPoint
+            pop rbx
+            pop rdx
+            pop rax
+
+            jmp incrementation
     
 flush:
     mov rdi, qword[display_name]
