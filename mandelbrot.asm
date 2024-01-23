@@ -9,6 +9,8 @@ extern XFlush
 extern XCreateGC
 extern XSetForeground
 extern XNextEvent
+extern XDrawPoint
+extern XDrawLine
 
 extern printf
 extern scanf
@@ -24,7 +26,7 @@ extern scanf
 %define KEY_PRESS 2
 %define BUTTON_PRESS 4
 %define EXPOSE 12
-%define CONFIGURE_NOTIFY 16
+%define CONFIGURE_NOTIFY 22
 %define CREATE_NOTIFY 16
 
 ;Sizes
@@ -41,31 +43,42 @@ extern scanf
 global main
 
 section .data
-x1:		dq -2.1
-x2:		dq 0.6
-y1:		dq -1.2
-y2:		dq 1.2
-zoomCoeff:	dq 100.0
-askZoom:	db "Quel zoom voulez-vous ? (1/100)", 10, 0
-dimensions:	db "Largeur : %d | Hauteur : %d", 10, 0
+x1:				dq -2.1
+x2:				dq 0.6
+y1:				dq -1.2
+y2:				dq 1.2
+zoomCoeff:		dq 100.0
+askZoom:		db "Quel zoom voulez-vous ? (1/100)", 10, 0
+dimensions:		db "Largeur : %d | Hauteur : %d", 10, 0
 askValidation:	db "Ces dimensions vous vont-elles ? (y/n)", 10, 0
-askChar:	db " %c", 0
-askDouble:	db "%lf", 0
+askChar:		db " %c", 0
+askDouble:		db "%lf", 0
 event: times 24 dq 0
+max_iteration:	dw 50
+floatZero:		dq 0.0
+floatTwo:		dq 2.0
+floatFour:		dq 4.0
 
 section .bss
-win_x:		resd 1
-win_y:		resd 1
-choice:		resb 1
-zoom:		resq 1
+win_x:			resd 1
+win_y:			resd 1
+choice:			resb 1
+zoom:			resq 1
 display_name:	resq 1
-screen:		resd 1
-depth:		resd 1
-connection:	resd 1
-width:		resd 1
-height:		resd 1
-window:		resq 1
-gc:		resq 1
+screen:			resd 1
+depth:			resd 1
+connection:		resd 1
+width:			resd 1
+height:			resd 1
+window:			resq 1
+gc:				resq 1
+iter:			resb 1
+cReal:			resq 1
+cImagi:			resq 1
+zReal:			resq 1
+zImagi:			resq 1
+colour:			resq 1
+
 
 section .text
 main:
@@ -101,7 +114,7 @@ start:
 	mov [win_y], eax
 
 	;Affichage des dimensions
-	mov rdi, dimensions 
+	mov rdi, dimensions
 	mov rsi, [win_x]
 	mov rdx, [win_y]
 	mov rax, 0
@@ -193,7 +206,102 @@ eventLoop:
 	jmp eventLoop
 
 dessin:
-	jmp flush
+
+	mov eax, 0 ; x
+	dec eax
+	Xloop:
+	cmp eax, dword[win_x]
+	je flush
+	inc eax
+	mov ebx, 0 ; y
+		Yloop:
+		cmp ebx, dword[win_y]
+		je Xloop
+			cvtsi2sd xmm0, eax ; Calcul partie reelle de c
+			divsd xmm0, [zoom]
+			addsd xmm0, [x1]
+			movsd [cReal], xmm0
+
+			cvtsi2sd xmm0, ebx ; calcul partie imaginaire de c
+			divsd xmm0, [zoom]
+			addsd xmm0, [y1]
+			movsd [cImagi], xmm0
+
+			movsd xmm0, [floatZero] ; mise a 0 de z
+			movsd [zReal], xmm0
+			movsd [zImagi], xmm0
+			mov cx, 0 ; mise a 0 du compteur
+
+			pointTest:			; Calcul de z_r^2 - z_i^2 + c_r
+				movsd xmm0, [zReal]
+				mulsd xmm0, xmm0 ; z_r^2
+				movsd xmm2, xmm0 ; On sauvegarde le resulat pour plus tard
+				movsd xmm1, [zImagi]
+				mulsd xmm1, xmm1 ; z_i^2
+				subsd xmm0, xmm1
+				addsd xmm0, [cReal]
+
+				movsd xmm3, [zImagi] ; Calcul de z_i * z_r * 2 + c_i
+				mulsd xmm3, [zReal]
+				mulsd xmm3, [floatTwo]
+				addsd xmm3, [cImagi]
+
+				movsd [zReal], xmm0 ; Enregistrement des resultats
+				movsd [zImagi], xmm3
+
+				;Calcul du terme z_r^2 + z_i^2
+				addsd xmm2, xmm1
+			
+			inc cx
+			ucomisd xmm2, qword[floatFour]
+			jae next
+			cmp cx, word[max_iteration]
+			jae next
+			jmp pointTest
+
+			next:
+			cmp cx, word[max_iteration]
+			jne else
+				mov rdx, 0x000000 ; rdx sera utilisé par la fonction qui set la couleur
+				jmp drawPoint
+			else:
+				;cx * 255 / max_iteration
+				push rax
+				push rbx
+
+				xor rax, rax
+				mov ax, cx
+				mov edx, 255
+				mul edx
+				xor rdx, rdx
+				div word[max_iteration]
+				mov bl, al
+				shl rbx, 8
+				mov bl, al
+				shl rbx, 8
+				mov bl, 255
+				mov rdx, rbx
+
+				pop rbx
+				pop rax
+
+			drawPoint:
+				mov rdi, qword[display_name]
+				mov rsi, qword[gc]
+				push rax ; pour garder la valeur de rax
+				call XSetForeground
+				pop rax
+
+				mov rdi, qword[display_name]
+				mov rsi, qword[window]
+				mov rdx, qword[gc]
+				mov ecx, eax	; coordonnée en x
+				mov r8d, ebx	; coordonnée en y
+				push rax ; pour garder la valeur de rax
+				call XDrawPoint
+				pop rax
+		inc ebx
+		jmp Yloop ;Fin de la Xloop
 
 flush:
 	mov rdi, qword[display_name]
